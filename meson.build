@@ -70,7 +70,7 @@ common_sources = [
 rc_revs = {
     'wm5_10500': 'WM5 1.05.00',
     'w5x_20002': 'W5X 2.00.02',
-    'w5p_30500': 'W5P 3.05.00',
+    'w5p_30005': 'W5P 3.00.05',
     'wm6_10304': 'WM6 1.03.04',
     'w6r_20008': 'W6R 2.00.08',
     'w6w_30503': 'W6W 3.05.03',
@@ -96,7 +96,7 @@ foreach rev, game : rc_revs
 endforeach
 rc_wm5_10500 = rc_res['wm5_10500']
 rc_w5x_20002 = rc_res['w5x_20002']
-rc_w5p_30500 = rc_res['w5p_30500']
+rc_w5p_30005 = rc_res['w5p_30005']
 rc_wm6_10304 = rc_res['wm6_10304']
 rc_w6r_20008 = rc_res['w6r_20008']
 rc_w6w_30503 = rc_res['w6w_30503']
@@ -121,11 +121,11 @@ library(
     link_args: ['-static'],
 )
 
-# W5P 3.05.00
+# W5P 3.00.05
 library(
-    'bngrw_w5p_30500',
+    'bngrw_w5p_30005',
     include_directories: ['src'],
-    sources: common_sources + ['src/dllmain_w5p_30500.cpp'] + rc_w5p_30500,
+    sources: common_sources + ['src/dllmain_w5p_30005.cpp'] + rc_w5p_30005,
     dependencies: [minhook_dep],
     name_prefix: '',
     link_args: ['-static'],

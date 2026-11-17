@@ -97,7 +97,7 @@ The older `[settings]` section in `card.ini` (`key`, `autoTap`, `autoTapDelayMs`
 |:----:|:----:|:--------:|
 | WMMT5 | `1.05.00` | `dist/wm5/1.05.00/bngrw.dll` |
 | WMMT5DX | `2.00.02` | `dist/w5x/2.00.02/bngrw.dll` |
-| WMMT5DX+ | `3.05.00` | `dist/w5p/3.05.00/bngrw.dll` |
+| WMMT5DX+ | `3.00.05` | `dist/w5p/3.00.05/bngrw.dll` |
 | WMMT6 | `1.03.04` | `dist/wm6/1.03.04/bngrw.dll` |
 | WMMT6R | `2.00.08` | `dist/w6r/2.00.08/bngrw.dll` |
 | WMMT6RR | `3.05.03` | `dist/w6w/3.05.03/bngrw.dll` |

@@ -3,7 +3,9 @@
 
 #define PATCH_OFFSET 0x90A7D8
 
-// W5P 3.05.00 Function Address Offset
+// W5P 3.00.05 Function Address Offset
+// NOTE: these offsets and PATCH_OFFSET were carried over from the former 3.05.00 file.
+// Verify them against the 3.00.05 executable (SOFT Rev 3.00.05) before relying on them.
 #define ADDR_BngRwAttach       0xD00760
 #define ADDR_BngRwInit         0xCFFE20
 #define ADDR_BngRwFin          0xCFFEB0
