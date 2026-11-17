@@ -1,22 +1,30 @@
 #include "banapass.h"
 #include "MinHook.h"
 
-#define PATCH_OFFSET 0x90A7D8
+// W5P 3.00.05 (wmn5r.exe). All offsets are RVAs from the image base.
+//
+// The reader library is linked statically into the game executable (the exe
+// does not import bngrw.dll), so every BngRw* call is hooked by address.
+// In 3.00.05 the library sits 0x57EA0 bytes lower than in 3.05.00; the
+// offsets below were re-derived from the 3.00.05 executable.
+
+// The IcCard handler function at 0x8B1750 calls ClearCardData() (0x8B0F90)
+// whenever BngRwIsCmdExec() != 1. BanaTap returns -1 there, so the game would
+// wipe the card data on every pass. This 5 byte call is NOPed out.
+#define PATCH_OFFSET 0x8B17D3
 
 // W5P 3.00.05 Function Address Offset
-// NOTE: these offsets and PATCH_OFFSET were carried over from the former 3.05.00 file.
-// Verify them against the 3.00.05 executable (SOFT Rev 3.00.05) before relying on them.
-#define ADDR_BngRwAttach       0xD00760
-#define ADDR_BngRwInit         0xCFFE20
-#define ADDR_BngRwFin          0xCFFEB0
-#define ADDR_BngRwGetVersion   0xD00750
-#define ADDR_BngRwIsCmdExec    0xCFFF80
-#define ADDR_BngRwReqLed       0xD00480
-#define ADDR_BngRwReqAction    0xD00670
-#define ADDR_BngRwReqBeep      0xD00570
-#define ADDR_BngRwReqCancel    0xCFFFF0
-#define ADDR_BngRwReqSendUrlTo 0xD001D0
-#define ADDR_BngRwReqWaitTouch 0xD000C0
+#define ADDR_BngRwAttach       0xCA88C0
+#define ADDR_BngRwInit         0xCA7F80
+#define ADDR_BngRwFin          0xCA8010
+#define ADDR_BngRwGetVersion   0xCA88B0
+#define ADDR_BngRwIsCmdExec    0xCA80E0
+#define ADDR_BngRwReqLed       0xCA85E0
+#define ADDR_BngRwReqAction    0xCA87D0
+#define ADDR_BngRwReqBeep      0xCA86D0
+#define ADDR_BngRwReqCancel    0xCA8150
+#define ADDR_BngRwReqSendUrlTo 0xCA8330
+#define ADDR_BngRwReqWaitTouch 0xCA8220
 
 static uintptr_t imageBase;
 
