@@ -123,7 +123,7 @@ library(
 
 # W5P 3.00.05
 library(
-    'bngrw_w5p_30005',
+    'openBanaW5p',
     include_directories: ['src'],
     sources: common_sources + ['src/dllmain_w5p_30005.cpp'] + rc_w5p_30005,
     dependencies: [minhook_dep],

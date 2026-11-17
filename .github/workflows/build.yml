@@ -75,7 +75,7 @@ jobs:
       - name: Checksums
         run: |
           cd dist
-          find . -name bngrw.dll | sed 's|^\./||' | sort | xargs sha256sum > SHA256SUMS.txt
+          find . \( -name bngrw.dll -o -name openBanaW5p.dll \) | sed 's|^\./||' | sort | xargs sha256sum > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
       - uses: actions/upload-artifact@v7

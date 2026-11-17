@@ -97,7 +97,7 @@ The older `[settings]` section in `card.ini` (`key`, `autoTap`, `autoTapDelayMs`
 |:----:|:----:|:--------:|
 | WMMT5 | `1.05.00` | `dist/wm5/1.05.00/bngrw.dll` |
 | WMMT5DX | `2.00.02` | `dist/w5x/2.00.02/bngrw.dll` |
-| WMMT5DX+ | `3.00.05` | `dist/w5p/3.00.05/bngrw.dll` |
+| WMMT5DX+ | `3.00.05` | `dist/w5p/3.00.05/openBanaW5p.dll` |
 | WMMT6 | `1.03.04` | `dist/wm6/1.03.04/bngrw.dll` |
 | WMMT6R | `2.00.08` | `dist/w6r/2.00.08/bngrw.dll` |
 | WMMT6RR | `3.05.03` | `dist/w6w/3.05.03/bngrw.dll` |
@@ -116,7 +116,7 @@ You do not have to build anything yourself. GitHub Actions builds all six DLLs o
 Check a download from the extracted folder: `sha256sum -c SHA256SUMS.txt` (Linux/MSYS2), or
 `Get-FileHash <file> -Algorithm SHA256` in PowerShell and compare it with the listed value.
 Copy the DLL for your revision next to the game executable and rename nothing: every file is
-already called `bngrw.dll`.
+already called `bngrw.dll`, except W5P, whose file is called `openBanaW5p.dll`.
 
 A separate `Logic tests (Linux)` job runs `tests/check.sh` and `tests/run.sh` first; see
 `tests/README.md`.
