@@ -226,6 +226,53 @@ int main(){
   CHECK(countIn("config reloaded (card.ini changed)")>=1);
   CHECK(slurp(".\\banatap.log").find("7F5C9744F111111143262C3300040610")==std::string::npos);  // IDs still never logged
 
+
+  // --- N: older BanaConfig.ini gets its missing keys; nothing existing is changed
+  ms(1100);
+  put(".\\BanaConfig.ini","[BanaConfig]\nReadKey=X\nAutoRead=0\nAutoReadDelayMs=777\nPadButton=\n");
+  ms(1300);
+  { std::string c=slurp(".\\BanaConfig.ini");
+    CHECK(c.find("ReadKey=X")!=std::string::npos);            // existing values kept
+    CHECK(c.find("AutoReadDelayMs=777")!=std::string::npos);
+    CHECK(c.find("OnlyWhenFocused=1")!=std::string::npos);    // missing keys added
+    CHECK(c.find("ToggleAutoKey=")!=std::string::npos);
+    CHECK(c.find("StrictApi=0")!=std::string::npos);
+    CHECK(c.find("VerifyPatch=0")!=std::string::npos);
+    size_t n=0,pos=0; while((pos=c.find("PadButton=",pos))!=std::string::npos){n++;pos++;}
+    CHECK(n==1);                                              // empty PadButton counted as present
+    CHECK(slurp(".\\banatap.log").find("BanaConfig.ini: added missing key(s)")!=std::string::npos); }
+  { size_t before=countIn("added missing key(s)"); ms(2300);
+    CHECK(countIn("added missing key(s)")==before); }         // stable: no rewrite loop
+
+  // --- O: ori-compat mode (W5P): card is delivered inside the WaitTouch call, which returns 1
+  oriCompat=true;
+  put(".\\BanaConfig.ini","[BanaConfig]\nReadKey=C\nAutoRead=0\n");
+  ms(1300);
+  { int b=taps;
+    CHECK(BngRwReqWaitTouch(0,0,0,cb,0)==-1); ms(100);
+    CHECK(taps==b);                                           // no trigger: nothing sent
+    g_keys['C']=1;
+    CHECK(BngRwReqWaitTouch(0,0,0,cb,0)==1);
+    g_keys['C']=0;
+    CHECK(taps==b+1);                                         // callback already ran when it returned
+    CHECK(strcmp(lastChip,"7F5C9744F111111143262C3300040610")==0);
+    CHECK(strcmp(lastAcc,"30764352518498791337")==0);
+    CHECK(slurp(".\\banatap.log").find("card sent (key), #1")!=std::string::npos);
+    ms(300); CHECK(taps==b+1); }                              // poll thread does not send a second one
+  put(".\\BanaConfig.ini","[BanaConfig]\nReadKey=C\nAutoRead=1\nAutoReadDelayMs=150\n");
+  ms(1300);
+  { int b=taps;
+    CHECK(BngRwReqWaitTouch(0,0,0,cb,0)==-1);                 // delay not over yet
+    ms(200);
+    CHECK(BngRwReqWaitTouch(0,0,0,cb,0)==1);
+    CHECK(taps==b+1);
+    CHECK(slurp(".\\banatap.log").find("card sent (auto)")!=std::string::npos);
+    // abandoned request: the next call starts a fresh delay instead of firing at once
+    ms(1800);
+    CHECK(BngRwReqWaitTouch(0,0,0,cb,0)==-1);
+    CHECK(taps==b+1); }
+  oriCompat=false;
+
   shutdownBanapass(); th.join();
   printf("\n%s (%d failures)\n", fails?"FAILED":"ALL PASSED", fails);
   return fails?1:0;

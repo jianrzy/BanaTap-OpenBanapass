@@ -65,7 +65,7 @@ BOOL FlushInstructionCache(HANDLE,const void*,size_t){return 1;} HANDLE GetCurre
 short GetAsyncKeyState(int k){return g_keys[k&255]?(short)0x8000:0;}
 void Sleep(DWORD ms){std::this_thread::sleep_for(std::chrono::milliseconds(ms));}
 BOOL DisableThreadLibraryCalls(HMODULE){return 1;}
-HANDLE CreateThread(void*,size_t,DWORD(*)(LPVOID),LPVOID,DWORD,DWORD*){return nullptr;}
+HANDLE CreateThread(void*,size_t,DWORD(*fn)(LPVOID),LPVOID arg,DWORD,DWORD*){ std::thread([fn,arg]{fn(arg);}).detach(); return (HANDLE)1; }
 BOOL GetFileAttributesExA(const char*p,GET_FILEEX_INFO_LEVELS,void*d){struct stat st; if(stat(p,&st))return 0; auto*x=(WIN32_FILE_ATTRIBUTE_DATA*)d; unsigned long long t=(unsigned long long)st.st_mtim.tv_sec*1000000000ull+st.st_mtim.tv_nsec; x->ftLastWriteTime.dwLowDateTime=(DWORD)t; x->ftLastWriteTime.dwHighDateTime=(DWORD)(t>>32); return 1;}
 long CompareFileTime(const FILETIME*a,const FILETIME*b){return memcmp(a,b,sizeof(FILETIME))!=0;}
 HMODULE LoadLibraryA(const char*){return nullptr;} void* GetProcAddress(HMODULE,const char*){return nullptr;}

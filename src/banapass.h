@@ -20,6 +20,10 @@ extern u8 cardData[168];
 
 extern int cardInsertKey;
 
+// W5P only: deliver cards the way the original OpenBanapass does (see banapass.cpp).
+// Set before initBanapass(); defaults to false so other games are unchanged.
+extern bool oriCompat;
+
 // Logging (DebugView + optional banatap.log). Never pass card identifiers to it.
 void bnLog(const char* fmt, ...);
 

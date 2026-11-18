@@ -16,13 +16,15 @@ The chipId and accessCode within it will be randomly generated.
 In the game, press the `C` key on your keyboard to trigger the sending of card data.  
 
 `card.ini` and `BanaConfig.ini` are looked up next to the DLL (not the process working
-directory). `BanaConfig.ini` is created with defaults on first run:
+directory). `BanaConfig.ini` is created with defaults on first run. If you already have one (for example
+with only `ReadKey` and `AutoRead`), the keys it lacks are added with their defaults; existing
+keys, values and comments are left as they are:
 
 ```ini
 [BanaConfig]
 ReadKey=C            ; letter, or a virtual-key code such as 67 / 0x43
 AutoRead=0           ; 1 = tap automatically when the game asks for a card
-AutoReadDelayMs=1500
+AutoReadDelayMs=300
 VerifyPatch=0        ; 1 = only NOP the patch site if it starts with a CALL (0xE8)
 PadButton=           ; XInput gamepad button(s) that tap the card, e.g. START or LB+A (empty = off)
 BeepOnTap=0          ; 1 = play a short beep when the card is sent
@@ -62,7 +64,7 @@ Notes:
   `OnlyWhenFocused`), `card not sent` (missing values in `card.ini`) or `patch site ... UNEXPECTED`
   (the patch offset does not match your game revision).
 - To check that the settings were understood, look for the `settings:` line (written at start and
-  after every config reload, for example `autoRead=on delay=1500ms`). `card sent (auto), #3` shows
+  after every config reload, for example `autoRead=on delay=300ms`). `card sent (auto), #3` shows
   how many cards were sent in this run. The `BanaConfig.ini:` line near the top shows exactly which
   file the DLL reads, and whether it was found.
 - `config reloaded (BanaConfig.ini changed)` names the file that triggered a reload. If it appears
@@ -86,7 +88,11 @@ Notes:
   first line of the log, for example `BanaTap 1.0.4-3a1b2c4`. The resource is added when `windres`
   is found at build time; the git revision comes from `git describe`.
 - Changes to `BanaConfig.ini` are picked up within about a second, no restart needed.
-  Removing a key restores its default.
+  Removing a key restores its default (the key is written back with that default).
+- **WMMT5DX+ (W5P 3.00.05)** works like the original OpenBanapass: the card is handed to the game
+  inside the `BngRwReqWaitTouch` call, which then returns 1, and the `0x8B17D3` game patch is not
+  applied. `VerifyPatch` is not used there.
+  Other games are unchanged.
 
 The older `[settings]` section in `card.ini` (`key`, `autoTap`, `autoTapDelayMs`,
 `verifyPatch`) is still read; `BanaConfig.ini` wins when both are present.

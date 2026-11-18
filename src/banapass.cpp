@@ -88,11 +88,15 @@ static const u8 cardDataTemplate[168] = {
 // ---------------------------------------------------------------------------
 // Settings / card.ini (stored next to the DLL, not in the process CWD)
 // ---------------------------------------------------------------------------
+// Set by a game's dllmain before initBanapass(): hand the card over the way the original
+// OpenBanapass does (inside the BngRwReqWaitTouch call, which then returns 1).
+bool oriCompat = false;
+
 static char iniPath[MAX_PATH]    = ".\\card.ini";
 static char configPath[MAX_PATH] = ".\\BanaConfig.ini";
 
 static bool autoTap        = false; // [settings] autoTap=1
-static DWORD autoTapDelay  = 1500;  // [settings] autoTapDelayMs
+static DWORD autoTapDelay  = 300;   // [settings] autoTapDelayMs
 static bool verifyPatch    = false; // [settings] verifyPatch=1
 static bool beepOnTap      = false; // [BanaConfig] BeepOnTap=1
 static WORD padMask        = 0;     // [BanaConfig] PadButton=START / LB+A ...
@@ -172,21 +176,45 @@ static void createCard() {
 }
 
 // BanaConfig.ini holds the behaviour options. Section/keys (ReadKey, AutoRead)
-// follow the layout used by other OpenBanapass builds; delay and verify
-// options are BanaTap additions.
-static void createConfig() {
-    WritePrivateProfileStringA("BanaConfig", "ReadKey", "C", configPath);
-    WritePrivateProfileStringA("BanaConfig", "AutoRead", "0", configPath);
-    WritePrivateProfileStringA("BanaConfig", "AutoReadDelayMs", "1500", configPath);
-    WritePrivateProfileStringA("BanaConfig", "VerifyPatch", "0", configPath);
-    WritePrivateProfileStringA("BanaConfig", "PadButton", "", configPath);
-    WritePrivateProfileStringA("BanaConfig", "BeepOnTap", "0", configPath);
-    WritePrivateProfileStringA("BanaConfig", "OnlyWhenFocused", "1", configPath);
-    WritePrivateProfileStringA("BanaConfig", "ToggleAutoKey", "", configPath);
-    WritePrivateProfileStringA("BanaConfig", "LogToFile", "1", configPath);
-    WritePrivateProfileStringA("BanaConfig", "LogExceptions", "1", configPath);
-    WritePrivateProfileStringA("BanaConfig", "LogApiCalls", "1", configPath);
-    WritePrivateProfileStringA("BanaConfig", "StrictApi", "0", configPath);
+// follow the layout used by other OpenBanapass builds; the other keys are
+// BanaTap additions.
+//
+// Every key that is missing is added with its default, whether the file is new
+// or an older one that only has a few keys. Existing keys, their values and
+// the comments in the file are never changed.
+static void ensureConfig() {
+    struct Def { const char* key; const char* val; };
+    static const Def defs[] = {
+        {"ReadKey", "C"}, {"AutoRead", "0"}, {"AutoReadDelayMs", "300"}, {"VerifyPatch", "0"},
+        {"PadButton", ""}, {"BeepOnTap", "0"}, {"OnlyWhenFocused", "1"}, {"ToggleAutoKey", ""},
+        {"LogToFile", "1"}, {"LogExceptions", "1"}, {"LogApiCalls", "1"}, {"StrictApi", "0"},
+    };
+    static bool warnedWrite = false;
+    char added[256];
+    added[0] = 0;
+    bool failed = false;
+    for (size_t i = 0; i < sizeof(defs) / sizeof(defs[0]); i++) {
+        const char* key = defs[i].key;
+        const char* val = defs[i].val;
+        if (oriCompat && strcmp(key, "VerifyPatch") == 0) continue;   // no game patch in this mode
+        // A key that is present but empty (PadButton=) counts as present
+        char probe[8];
+        GetPrivateProfileStringA("BanaConfig", key, "\x01", probe, sizeof(probe), configPath);
+        if (probe[0] != '\x01') continue;
+        if (WritePrivateProfileStringA("BanaConfig", key, val, configPath)) {
+            if (strlen(added) + strlen(key) + 3 < sizeof(added)) {
+                if (added[0]) strcat(added, ", ");
+                strcat(added, key);
+            }
+        } else {
+            failed = true;
+        }
+    }
+    if (added[0]) bnLog("BanaConfig.ini: added missing key(s): %s", added);
+    if (failed && !warnedWrite) {
+        warnedWrite = true;
+        bnLog("BanaConfig.ini could not be updated (read-only?); missing keys use their defaults");
+    }
 }
 
 static bool equalsNoCase(const char* a, const char* b);
@@ -330,7 +358,7 @@ static void loadSettings() {
     // Defaults first, so removing a key from the file restores its default
     cardInsertKey = 'C';
     autoTap       = false;
-    autoTapDelay  = 1500;
+    autoTapDelay  = 300;
     verifyPatch   = false;
     beepOnTap     = false;
     padMask       = 0;
@@ -345,7 +373,7 @@ static void loadSettings() {
     applyFile("settings", iniPath, "key", "autoTap", "autoTapDelayMs", "verifyPatch");
 
     // BanaConfig.ini overrides the legacy values
-    if (!fileExists(configPath)) createConfig();
+    ensureConfig();
     applyFile("BanaConfig", configPath, "ReadKey", "AutoRead", "AutoReadDelayMs", "VerifyPatch");
 
     char val[64];
@@ -580,6 +608,79 @@ static void fileTime(const char* path, FILETIME* out) {
     if (GetFileAttributesExA(path, GetFileExInfoStandard, &d)) *out = d.ftLastWriteTime;
 }
 
+// Last BngRwReqWaitTouch call (ori-compat mode): tells new requests from old ones
+static std::atomic<DWORD> lastWaitCall(0);
+#define ORI_REQUEST_STALE_MS 1500
+#define ORI_SETTLE_MS 250
+
+// Fresh template, then accessCode (offset 0x50) first and chipId (offset 0x2C)
+// second, each with its terminating NUL and no cut to 20 / 32 characters.
+static void fillCardData() {
+    memcpy(cardData, cardDataTemplate, sizeof(cardData));
+    memcpy(cardData + 0x50, accessCode, strlen(accessCode) + 1);
+    memcpy(cardData + 0x2C, chipId, strlen(chipId) + 1);
+}
+
+struct TouchJob { callbackTouch cb; u64 data; };
+
+static DWORD WINAPI touchJobThread(LPVOID p) {
+    TouchJob j = *(TouchJob*)p;
+    delete (TouchJob*)p;
+    j.cb(0, 0, cardData, j.data);
+    return 0;
+}
+
+// ori-compat BngRwReqWaitTouch. Like the original OpenBanapass: while no tap
+// trigger fires the call returns -1 and the game keeps asking; when one fires
+// the card is handed to the callback on a helper thread, the call waits 250 ms
+// and returns 1, all within that same call. The triggers (tap key, gamepad,
+// auto read) are the BanaTap ones, evaluated here instead of in the poll thread.
+static i32 waitTouchOriCompat(callbackTouch callback, u64 a5) {
+    static DWORD waitSince = 0;
+    static unsigned sent = 0;
+    static DWORD lastBadCb = 0;
+
+    DWORD now = GetTickCount();
+    DWORD prev = lastWaitCall.exchange(now ? now : 1);
+    if (!waitingForTouch || (prev && now - prev > ORI_REQUEST_STALE_MS)) {
+        waitSince = now;
+        waitingForTouch = true;
+    }
+    touchCallback = callback;
+    touchData     = a5;
+
+    bool focused = !onlyFocused || gameFocused();
+    bool keyDown = focused && (GetAsyncKeyState(cardInsertKey) & 0x8000) != 0;
+    bool padDown = focused && padPressed();
+    bool autoDue = autoTap && focused && (now - waitSince >= autoTapDelay);
+    if (!(keyDown || padDown || autoDue) || !callback) return -1;
+
+    if (!isExecutable((const void*)callback)) {
+        if (lastBadCb == 0 || now - lastBadCb > 5000) {
+            lastBadCb = now ? now : 1;
+            bnLog("callback pointer %p is not executable memory, request dropped", (void*)callback);
+        }
+        waitingForTouch = false;
+        return -1;
+    }
+    if (!reloadCard()) return -1;
+
+    fillCardData();
+    TouchJob* job = new TouchJob{callback, a5};
+    HANDLE h = CreateThread(NULL, 0, touchJobThread, job, 0, NULL);
+    if (h) {
+        CloseHandle(h);
+    } else {
+        delete job;
+        callback(0, 0, cardData, a5);
+    }
+    bnLog("card sent (%s), #%u", keyDown ? "key" : (padDown ? "gamepad" : "auto"), ++sent);
+    waitingForTouch = false;
+    if (beepOnTap) MessageBeep(MB_OK);
+    Sleep(ORI_SETTLE_MS);
+    return 1;
+}
+
 DWORD WINAPI cardPollThread(LPVOID lpParam) {
     DWORD waitSince = 0;
     bool wasWaiting = false;
@@ -611,6 +712,11 @@ DWORD WINAPI cardPollThread(LPVOID lpParam) {
                       (cfgChanged && iniChanged) ? " and " : "", iniChanged ? "card.ini" : "");
             }
         }
+
+        // ori-compat: the game stopped asking, so the request is over
+        if (oriCompat && waitingForTouch && lastWaitCall != 0 &&
+            GetTickCount() - lastWaitCall > ORI_REQUEST_STALE_MS)
+            waitingForTouch = false;
 
         bool waiting = waitingForTouch;
         if (waiting && !wasWaiting) {
@@ -644,7 +750,8 @@ DWORD WINAPI cardPollThread(LPVOID lpParam) {
         bool autoDue = autoTap && focused && waiting &&
                        (GetTickCount() - waitSince >= autoTapDelay);
 
-        if (waiting && (keyDown || padDown || autoDue)) {
+        // In ori-compat mode the card is delivered from BngRwReqWaitTouch itself
+        if (!oriCompat && waiting && (keyDown || padDown || autoDue)) {
             callbackTouch cb = touchCallback;
             u64 data = touchData;
             if (cb && !isExecutable((const void*)cb)) {
@@ -658,9 +765,7 @@ DWORD WINAPI cardPollThread(LPVOID lpParam) {
                 // Same as OpenBanapass: start from a fresh template, then copy
                 // accessCode (offset 0x50) first and chipId (offset 0x2C) second,
                 // each with its terminating NUL and no cut to 20 / 32 characters.
-                memcpy(cardData, cardDataTemplate, sizeof(cardData));
-                memcpy(cardData + 0x50, accessCode, strlen(accessCode) + 1);
-                memcpy(cardData + 0x2C, chipId, strlen(chipId) + 1);
+                fillCardData();
                 cb(0, 0, cardData, data);
                 bnLog("card sent (%s), #%u", keyDown ? "key" : (padDown ? "gamepad" : "auto"), ++sentCount);
                 waitingForTouch = false;
@@ -751,6 +856,7 @@ EXPORT i32 BngRwReqSendUrlTo(u32 reader, i32 b, u32 c, i32* d, char* url, char* 
 
 EXPORT i32 BngRwReqWaitTouch(u32 a1, i32 a2, u32 a3, callbackTouch callback, u64 a5) {
     API_TRACE("BngRwReqWaitTouch");
+    if (oriCompat) return waitTouchOriCompat(callback, a5);
     if (touchFinished) {
         touchFinished = false;
         return 1;

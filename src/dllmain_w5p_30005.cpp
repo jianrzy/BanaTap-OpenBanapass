@@ -8,10 +8,10 @@
 // In 3.00.05 the library sits 0x57EA0 bytes lower than in 3.05.00; the
 // offsets below were re-derived from the 3.00.05 executable.
 
-// The IcCard handler function at 0x8B1750 calls ClearCardData() (0x8B0F90)
-// whenever BngRwIsCmdExec() != 1. BanaTap returns -1 there, so the game would
-// wipe the card data on every pass. This 5 byte call is NOPed out.
-#define PATCH_OFFSET 0x8B17D3
+// No game patch here. This build follows the original OpenBanapass: the card is
+// handed over inside BngRwReqWaitTouch (see oriCompat in banapass.cpp), so the
+// ClearCardData() call at 0x8B17D3 is left alone. (With the old poll-thread
+// delivery the card was read as invalid in 3.00.05.)
 
 // W5P 3.00.05 Function Address Offset
 #define ADDR_BngRwAttach       0xCA88C0
@@ -70,9 +70,9 @@ static void installHooks() {
 BOOL WINAPI DllMain(HMODULE module, DWORD reason, LPVOID reserved) {
     if (reason == DLL_PROCESS_ATTACH) {
         DisableThreadLibraryCalls(module);
+        oriCompat = true;
         initBanapass();
         installHooks();
-        patchCardDataCheck(PATCH_OFFSET);
         HANDLE pollThread = CreateThread(NULL, 0, cardPollThread, NULL, 0, NULL);
         if (pollThread)
             CloseHandle(pollThread);
