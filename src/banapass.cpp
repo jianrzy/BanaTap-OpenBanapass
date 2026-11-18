@@ -151,19 +151,17 @@ static void makeChipId(char* out) { // 32 hex digits
     out[32] = 0;
 }
 
-static bool validAccessCode(const char* s) {
-    if (strlen(s) != 20) return false;
-    for (int i = 0; i < 20; i++) if (s[i] < '0' || s[i] > '9') return false;
-    return true;
-}
-
-static bool validChipId(const char* s) {
-    if (strlen(s) != 32) return false;
-    for (int i = 0; i < 32; i++) {
-        char c = s[i];
-        if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f'))) return false;
+// card.ini values are sent as written, so this only looks for mistakes that are
+// plain errors, not for a particular length or character set (real cards differ
+// between setups). Returns NULL if the value is fine, otherwise a short reason.
+// maxLen is how many characters fit before the next field in the card data.
+static const char* cardValueIssue(const char* s, size_t maxLen) {
+    if (strlen(s) > maxLen) return "too long, runs into the next field";
+    for (const char* p = s; *p; p++) {
+        bool ok = (*p >= '0' && *p <= '9') || (*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z');
+        if (!ok) return "has characters other than letters and digits";
     }
-    return true;
+    return NULL;
 }
 
 static void createCard() {
@@ -430,13 +428,16 @@ bool reloadCard() {
         return false;
     }
 
-    bool formatOk = validAccessCode(ac) && validChipId(ci);
+    // chipId sits at 0x2C and the next field starts at 0x50: 35 characters + NUL fit
+    const char* chipIssue = cardValueIssue(ci, 35);
+    const char* accIssue  = cardValueIssue(ac, 63);
+    bool formatOk = !chipIssue && !accIssue;
     if (!formatOk && !warnedFormat) {
         warnedFormat = true;
-        // Lengths and verdicts only: the values themselves are never logged
-        bnLog("card.ini values look unusual, sending them as written: chipId has %u chars (%s, 32 hex expected), accessCode has %u chars (%s, 20 digits expected)",
-              (unsigned)strlen(ci), validChipId(ci) ? "ok" : "unusual",
-              (unsigned)strlen(ac), validAccessCode(ac) ? "ok" : "unusual");
+        // Lengths and reasons only: the values themselves are never logged
+        bnLog("card.ini values look unusual, sending them as written: chipId has %u chars (%s), accessCode has %u chars (%s)",
+              (unsigned)strlen(ci), chipIssue ? chipIssue : "ok",
+              (unsigned)strlen(ac), accIssue ? accIssue : "ok");
     }
     if (formatOk) warnedFormat = false;
 

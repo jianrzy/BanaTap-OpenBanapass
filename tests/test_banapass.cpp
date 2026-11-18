@@ -70,12 +70,12 @@ int main(){
   finish();
 
   // --- C: invalid format is sent as written, file untouched
-  const char* odd="[card]\nchipId=ABC\naccessCode=123\n";
+  const char* odd="[card]\nchipId=AB-C\naccessCode=12_3\n";
   put(".\\card.ini",odd); waitTouch(); g_keys['C']=1; ms(500); g_keys['C']=0;
-  CHECK(taps==3); CHECK(strcmp(lastChip,"ABC")==0); CHECK(strcmp(lastAcc,"123")==0);
+  CHECK(taps==3); CHECK(strcmp(lastChip,"AB-C")==0); CHECK(strcmp(lastAcc,"12_3")==0);
   CHECK(slurp(".\\card.ini")==odd); finish();
   { std::string L=slurp(".\\banatap.log");
-    CHECK(L.find("chipId has 3 chars (unusual, 32 hex expected), accessCode has 3 chars (unusual, 20 digits expected)")!=std::string::npos); }
+    CHECK(L.find("chipId has 4 chars (has characters other than letters and digits), accessCode has 4 chars (has characters other than letters and digits)")!=std::string::npos); }
 
   // --- D: missing values -> nothing sent
   put(".\\card.ini","[card]\nchipId=\n"); waitTouch(); g_keys['C']=1; ms(500); g_keys['C']=0;
@@ -272,6 +272,18 @@ int main(){
     CHECK(BngRwReqWaitTouch(0,0,0,cb,0)==-1);
     CHECK(taps==b+1); }
   oriCompat=false;
+
+  // --- P: any length / letters+digits is not flagged (real cards differ between setups)
+  { size_t before=countIn("card.ini values look unusual");
+    put(".\\card.ini","[card]\naccessCode=ABCDEFGHIJ0123456789KLMNOPQRSTUV\nchipId=1234567890123456789\n");
+    CHECK(reloadCard());
+    put(".\\card.ini","[card]\nchipId=7F5C9744F111111143262C3300040610\naccessCode=30764352518498791337\n");
+    CHECK(reloadCard());
+    CHECK(countIn("card.ini values look unusual")==before);
+    put(".\\card.ini","[card]\nchipId=ABCDEFGHIJ0123456789KLMNOPQRSTUVWXYZ\naccessCode=1\n");   // 36 chars: runs into accessCode
+    CHECK(reloadCard());
+    CHECK(slurp(".\\banatap.log").find("chipId has 36 chars (too long, runs into the next field)")!=std::string::npos);
+    put(".\\card.ini",good); }
 
   shutdownBanapass(); th.join();
   printf("\n%s (%d failures)\n", fails?"FAILED":"ALL PASSED", fails);

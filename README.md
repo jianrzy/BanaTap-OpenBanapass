@@ -52,9 +52,11 @@ Notes:
 - `OnlyWhenFocused=1` checks that the foreground window belongs to the game process. It applies
   to the tap key, the gamepad and auto tap. If taps never work on your setup, set it to `0`.
 - `card.ini` is never modified after it has been created. If `chipId`/`accessCode` are missing
-  the card is not sent; if they look unusual they are sent exactly as written (not cut to 20 / 32
-  characters, like OpenBanapass: up to 63 characters each, with the terminating NUL) and a warning
-  goes to the debug log. Each card is built from a fresh template, `accessCode` copied to offset
+  the card is not sent; if they look unusual they are sent exactly as written (not cut to a fixed length,
+  like OpenBanapass: up to 63 characters each, with the terminating NUL) and a warning goes to
+  the debug log. Only real mistakes are flagged (characters other than letters and digits, or a
+  `chipId` longer than 35 characters); the length and letter/digit mix of real cards differ
+  between setups, so no particular format is expected. Each card is built from a fresh template, `accessCode` copied to offset
   0x50 first and `chipId` to offset 0x2C second. A new random card is only generated when `card.ini` does not exist.
 - `banatap.log` is created next to the DLL and restarted when it grows past 256 KB. It records
   the patch site check, hook results, card requests, which trigger sent the card, config
@@ -70,7 +72,7 @@ Notes:
 - `config reloaded (BanaConfig.ini changed)` names the file that triggered a reload. If it appears
   although you did not edit anything, another program touched that file.
 - `card.ini values look unusual` gives the length of `chipId` and `accessCode` (never the values)
-  and which of the two is unusual. The values are still sent exactly as written.
+  and the reason for the one that is unusual. The values are still sent exactly as written.
 - `LogExceptions` adds a line for access violations and similar first-chance exceptions with the
   module and offset. The game may handle some of them itself, so treat a line as a lead rather
   than proof of a crash. At most 20 lines per run.
